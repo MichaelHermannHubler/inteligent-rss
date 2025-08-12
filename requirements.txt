@@ -2,6 +2,5 @@ feedparser==6.0.10
 requests==2.31.0
 beautifulsoup4==4.12.2
 llama-cpp-python==0.2.20
-sqlite3
 typing-extensions==4.8.0
 python-dotenv==1.0.0 
