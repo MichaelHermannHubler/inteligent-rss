@@ -8,12 +8,12 @@ You can use this as a template to create sources for specific websites or RSS fe
 from typing import List, Dict, Any
 
 from .utils import get_content_from_link
-from .base_source import BaseSource, RSSItem
+from .BaseSource import BaseSource, RSSItem
 
 import feedparser
 
 
-class OTSRSSSource(BaseSource):
+class ORFNewsRSSSource(BaseSource):
     """
     OTS RSS source implementation
     """
@@ -27,7 +27,7 @@ class OTSRSSSource(BaseSource):
             url: RSS feed URL
         """
         super().__init__(name)
-        self.url = 'https://ots.at/rss/medien'  
+        self.url = 'https://rss.orf.at/news.xml'  
     
     def consume(self) -> List[RSSItem]:
         """
@@ -42,10 +42,10 @@ class OTSRSSSource(BaseSource):
             RSSItem(
                 title=item.title,
                 link=item.link,
-                description=item.description,
-                published=item.published,
-                content=get_content_from_link(item.link, tag_name='article'),
-                source=self.name,
+                description=item.title,  # ORF News RSS does not provide a description
+                published=item.updated,
+                content=get_content_from_link(item.link, class_name='story-story'),
+                source=self.name
             )
             for item in feed.entries
         ]

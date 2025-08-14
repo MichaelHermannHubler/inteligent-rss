@@ -24,10 +24,7 @@ def get_content_from_link(
         else:
             raise Exception ("Specify either tag_name or class_name, not both.")
 
-        if class_name:
-            return elements[-1].get_text(separator='\n', strip=True)
-        else:
-            return "No matching element found on the page."
+        return elements[-1].get_text(separator='\n', strip=True)
     except requests.exceptions.RequestException as e:
         return f"Error fetching the URL: {e}"
     except Exception as e:

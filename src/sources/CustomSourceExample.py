@@ -6,8 +6,8 @@ You can use this as a template to create sources for specific websites or RSS fe
 """
 
 from typing import List, Dict, Any
-from .base_source import BaseSource, RSSItem
-from .generic_rss import GenericRSSSource
+from .BaseSource import BaseSource, RSSItem
+from .GenericRSS import GenericRSSSource
 
 
 class CustomSourceExample(GenericRSSSource):

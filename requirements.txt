@@ -2,6 +2,10 @@ feedparser==6.0.10
 requests==2.31.0
 beautifulsoup4==4.12.2
 llama-cpp-python==0.2.20
-typing-extensions==4.8.0
+typing-extensions>4.8.0
 python-dotenv==1.0.0 
 pytest==8.4.1
+vLLM >= v0.6.4
+mistral_common >= 1.4.4
+triton == 3.2.0
+ruff>=0.12.9
