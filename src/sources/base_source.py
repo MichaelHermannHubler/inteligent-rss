@@ -13,15 +13,14 @@ class RSSItem:
     published: datetime
     content: str
     source: str
-    guid: str
 
 
 class BaseSource(ABC):
     """Base interface for all RSS sources"""
-    
-    def __init__(self, name: str, url: str):
+    url: str # URL of the RSS feed
+
+    def __init__(self, name: str):
         self.name = name
-        self.url = url
     
     @abstractmethod
     def consume(self) -> List[RSSItem]:
@@ -30,16 +29,6 @@ class BaseSource(ABC):
         
         Returns:
             List[RSSItem]: List of parsed RSS items
-        """
-        pass
-    
-    @abstractmethod
-    def get_source_info(self) -> Dict[str, Any]:
-        """
-        Get information about the source
-        
-        Returns:
-            Dict[str, Any]: Source metadata
         """
         pass
     

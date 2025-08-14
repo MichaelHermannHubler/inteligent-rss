@@ -4,6 +4,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
+from sources.base_source import RSSItem
+from .utils import adapt_timeobj, convert_timeobj
+
 
 class RSSDatabase:
     """SQLite database for storing RSS items and LLM processing results"""
@@ -16,25 +19,31 @@ class RSSDatabase:
             db_path: Path to the SQLite database file
         """
         self.db_path = db_path
+
+        # Converts DT.time to TEXT when inserting
+        sqlite3.register_adapter(datetime.time, adapt_timeobj)
+
+        # Converts TEXT to DT.time when selecting
+        sqlite3.register_converter("timeobj", convert_timeobj)
+
         self._create_tables()
     
     def _create_tables(self):
         """Create the necessary database tables"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             # Create RSS items table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS rss_items (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guid TEXT UNIQUE NOT NULL,
                     title TEXT NOT NULL,
                     link TEXT NOT NULL,
                     description TEXT,
                     content TEXT,
                     published TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    source ID NOT NULL,
+                    FOREIGN KEY (source) REFERENCES sources(name)
                 )
             ''')
             
@@ -42,7 +51,7 @@ class RSSDatabase:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS llm_results (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    item_guid TEXT NOT NULL,
+                    item_id INTEGER NOT NULL,
                     item_title TEXT NOT NULL,
                     item_source TEXT NOT NULL,
                     query TEXT NOT NULL,
@@ -54,7 +63,7 @@ class RSSDatabase:
                     llm_response TEXT,
                     processed_at TEXT NOT NULL,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (item_guid) REFERENCES rss_items (guid)
+                    FOREIGN KEY (item_id) REFERENCES rss_items (id)
                 )
             ''')
             
@@ -65,13 +74,11 @@ class RSSDatabase:
                     name TEXT UNIQUE NOT NULL,
                     url TEXT NOT NULL,
                     last_consumed TEXT,
-                    item_count INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
             # Create indexes for better performance
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_rss_items_guid ON rss_items(guid)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_rss_items_source ON rss_items(source)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_rss_items_published ON rss_items(published)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_llm_results_query ON llm_results(query)')
@@ -79,7 +86,7 @@ class RSSDatabase:
             
             conn.commit()
     
-    def store_rss_items(self, items: List[Dict[str, Any]]) -> int:
+    def store_rss_items(self, items: List[RSSItem]) -> int:
         """
         Store RSS items in the database
         
@@ -91,28 +98,32 @@ class RSSDatabase:
         """
         stored_count = 0
         
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             for item in items:
                 try:
+                    cursor.execute('SELECT id FROM rss_items WHERE link = ? AND source = ?', (item.link, item.source))
+                    exists = cursor.fetchone()
+                    if exists:
+                        continue  # Skip if already exists
+
                     cursor.execute('''
                         INSERT OR REPLACE INTO rss_items 
-                        (guid, title, link, description, content, published, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (title, link, description, content, published, source)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     ''', (
-                        item['guid'],
-                        item['title'],
-                        item['link'],
-                        item['description'],
-                        item['content'],
-                        item['published'].isoformat() if hasattr(item['published'], 'isoformat') else str(item['published']),
-                        item['source']
+                        item.title,
+                        item.link,
+                        item.description,
+                        item.content,
+                        item.published,
+                        item.source
                     ))
                     stored_count += 1
                     
                 except sqlite3.Error as e:
-                    print(f"Error storing RSS item '{item.get('title', 'Unknown')}': {e}")
+                    print(f"Error storing RSS item '{item.title}': {e}")
                     continue
             
             conn.commit()
@@ -131,7 +142,7 @@ class RSSDatabase:
         """
         stored_count = 0
         
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             for result in results:
@@ -164,26 +175,25 @@ class RSSDatabase:
         
         return stored_count
     
-    def store_source_info(self, source_info: Dict[str, Any]):
+    def store_source_info(self, name: str, url: str):
         """
         Store or update source information
         
         Args:
             source_info: Source metadata to store
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             try:
                 cursor.execute('''
                     INSERT OR REPLACE INTO sources 
-                    (name, url, last_consumed, item_count)
-                    VALUES (?, ?, ?, ?)
+                    (name, url, last_consumed)
+                    VALUES (?, ?, ?)
                 ''', (
-                    source_info['name'],
-                    source_info['url'],
-                    source_info.get('last_updated', ''),
-                    source_info.get('item_count', 0)
+                    name,
+                    url,
+                    datetime.now().isoformat(),
                 ))
                 
                 conn.commit()
@@ -203,7 +213,7 @@ class RSSDatabase:
         Returns:
             List of relevant items with their LLM analysis
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -235,7 +245,7 @@ class RSSDatabase:
         Returns:
             List of source statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -265,7 +275,7 @@ class RSSDatabase:
         Returns:
             List of query statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -297,7 +307,7 @@ class RSSDatabase:
         Args:
             days_old: Remove items older than this many days
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             try:
@@ -331,7 +341,7 @@ class RSSDatabase:
         Returns:
             Dictionary with database statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             cursor = conn.cursor()
             
             # Get table row counts

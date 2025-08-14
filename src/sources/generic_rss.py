@@ -3,7 +3,7 @@ import requests
 from datetime import datetime
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
-from ..base_source import BaseSource, RSSItem
+from .base_source import BaseSource, RSSItem
 
 
 class GenericRSSSource(BaseSource):
