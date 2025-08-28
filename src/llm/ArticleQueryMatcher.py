@@ -31,8 +31,23 @@ class ArticleQueryMatcher:
             bool: True if the article text matches the query, False otherwise.
         """
         # Combine article and query into a single prompt
-        prompt = f"Does the following article text answer or relate to the query?\n\nArticle: {article_text}\n\nQuery: {query}\n\nAnswer only with 'Yes' or 'No':"
 
+        prompt = f"""
+        Du bist ein präziser Assistent, der prüft, ob ein gegebener Artikel eine kurze Frage beantwortet.
+Analysiere den folgenden Artikeltext und beantworte die Frage ausschließlich mit "Yes" oder "No".
+
+**Artikeltext:**
+{article_text}
+
+**Frage:**
+{query}
+
+**Anforderungen:**
+- Beantworte die Frage nur mit "Yes" oder "No".
+- Berücksichtige nur die Informationen, die explizit im Artikeltext stehen.
+- Wenn die Antwort nicht eindeutig aus dem Artikel hervorgeht, antworte mit "No".
+- Ignoriere Kontextwissen oder Annahmen außerhalb des Artikeltexts.
+        """
         messages = [
             {
                 "role": "user",
